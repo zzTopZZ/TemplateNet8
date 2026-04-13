@@ -1,0 +1,343 @@
+﻿using Asp.Versioning;
+using Microsoft.AspNetCore.Mvc;
+
+namespace TemplateNet8.Api.Controllers.v1
+{
+    [ApiVersion("1.0")]
+    [Route("api/v{version:apiVersion}/[controller]")]
+    public class TesteController : MainController
+    {
+        [HttpGet]
+        public IActionResult Get()
+        {
+            //return Ok("Template Api Teste v1 ");
+
+            var result = new
+            {
+                Message = "Template Api Teste v1",
+                Version = HttpContext.GetRequestedApiVersion()?.ToString() ?? "Unknown"
+            };
+
+            return (IActionResult)Results.Ok(result);
+        }
+    }
+}
+using Asp.Versioning;
+using Microsoft.AspNetCore.Mvc;
+
+namespace TemplateNet8.Api.Controllers.v2
+
+{
+    [ApiVersion("2.0")]
+    [Route("api/v{version:apiVersion}/[controller]")]
+    public class TesteController : MainController   
+    {
+        [HttpGet]
+        public IActionResult Get()
+        {
+            //return Ok("Template Api Teste v2 ");
+
+            var result = new
+            {
+                Message = "Template Api Teste v2",
+                Version = HttpContext.GetRequestedApiVersion()?.ToString() ?? "Unknown"
+            };
+
+            return (IActionResult)Results.Ok(result);
+        }
+    }
+}
+using Microsoft.AspNetCore.Mvc;
+
+namespace TemplateNet8.Api.Controllers
+{
+    [ApiController]
+    public class MainController : ControllerBase
+    {
+    }
+}
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+
+namespace TemplateNet8.Api.Infra.Extensions
+{
+    public static class ApiHealthCkecksSetup
+    {
+        public static void AddApiHealthChecks(this IServiceCollection services, IConfiguration configuration)
+        {
+            services.AddHealthChecks();
+        }
+
+        public static void UseApiHealthChecks(this IApplicationBuilder app)
+        {
+            app.UseHealthChecks("/health", new HealthCheckOptions
+            {
+                Predicate = _ => false,
+
+            });
+        }
+    }
+}
+namespace TemplateNet8.Api.Infra.Extensions
+{
+    public static class ApiSetup
+    {
+        public static void AddApiSetup(this IServiceCollection services)
+        {
+            services.AddControllers();
+            services.AddApiVersioningSetup();
+            services.AddEndpointsApiExplorer();
+            services.AddApiSwaggerSetup();
+            services.AddHealthChecks();
+        }
+
+        public static void UseApiSetup(this WebApplication app)
+        {
+            if(app.Environment.IsDevelopment())
+            {
+                app.UseApiSwaggerSetup();
+            }
+            app.UseApiHealthChecks();
+
+            app.MapControllers();
+        }
+    }
+}
+using Asp.Versioning.ApiExplorer;
+using Microsoft.Extensions.Options;
+using Microsoft.OpenApi;
+using Swashbuckle.AspNetCore.SwaggerGen;
+
+namespace TemplateNet8.Api.Infra.Extensions
+{
+    public static class ApiSwaggerSetup
+    {
+        public static void AddApiSwaggerSetup(this IServiceCollection services)
+        {
+            services.AddSwaggerGen();
+            services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
+        }
+
+        public static void UseApiSwaggerSetup(this WebApplication app)
+        {
+            if (app.Environment.IsDevelopment())
+            {
+                app.UseSwagger();
+                app.UseSwaggerUI(options =>
+                {
+                    var provider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
+                    foreach (var description in provider.ApiVersionDescriptions)
+                    {
+                        options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json", description.GroupName.ToUpperInvariant());
+                    }
+                });
+            }
+        }
+    }
+
+    public class ConfigureSwaggerOptions (IApiVersionDescriptionProvider provider) : IConfigureOptions<SwaggerGenOptions>
+    {
+        public void Configure(SwaggerGenOptions options)
+        {
+            foreach (var description in provider.ApiVersionDescriptions)
+            {
+                options.SwaggerDoc(description.GroupName, CreateInfoForApiVersion(description));
+            }
+        }
+
+        private static OpenApiInfo CreateInfoForApiVersion(ApiVersionDescription description)
+        {
+            return new OpenApiInfo
+            {
+                Title = $"TemplateNet8 API {description.ApiVersion}",
+                Version = description.ApiVersion.ToString(),
+                Description = "<p>API <strong>documentation</strong> for TemplateNet8.</p>",
+                Contact = new OpenApiContact
+                {
+                    Name = "Renato Souza",
+                    Email = "renatozz@gmail.com",
+                    Url = new Uri("https://escoladev.com.br")
+                }
+            }; 
+        }
+    }
+}
+using Asp.Versioning;
+
+namespace TemplateNet8.Api.Infra.Extensions
+{
+    public static class ApiVersioningSetup
+    {
+        public static void AddApiVersioningSetup(this IServiceCollection services)
+        {
+            services.AddApiVersioning(options =>
+            {
+                options.AssumeDefaultVersionWhenUnspecified = true;
+                options.DefaultApiVersion = ApiVersion.Default; // 1.0
+                options.ReportApiVersions = true;
+                options.ApiVersionReader = ApiVersionReader.Combine(
+                    new HeaderApiVersionReader("api-version"),
+                    new QueryStringApiVersionReader("api-version"),
+                    new UrlSegmentApiVersionReader()
+                );
+            }).AddApiExplorer(options =>
+            {
+                options.GroupNameFormat = "'v'V";
+                options.SubstituteApiVersionInUrl = true;
+            });
+        }
+    }
+}
+// <autogenerated />
+using System;
+using System.Reflection;
+[assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v8.0", FrameworkDisplayName = ".NET 8.0")]
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//     Runtime Version:4.0.30319.42000
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: Microsoft.Extensions.Configuration.UserSecrets.UserSecretsIdAttribute("5d32681b-f284-452d-afe1-615d6f3a23b5")]
+[assembly: System.Reflection.AssemblyCompanyAttribute("TemplateNet8.Api")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyProductAttribute("TemplateNet8.Api")]
+[assembly: System.Reflection.AssemblyTitleAttribute("TemplateNet8.Api")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+// <auto-generated/>
+global using global::Microsoft.AspNetCore.Builder;
+global using global::Microsoft.AspNetCore.Hosting;
+global using global::Microsoft.AspNetCore.Http;
+global using global::Microsoft.AspNetCore.Routing;
+global using global::Microsoft.Extensions.Configuration;
+global using global::Microsoft.Extensions.DependencyInjection;
+global using global::Microsoft.Extensions.Hosting;
+global using global::Microsoft.Extensions.Logging;
+global using global::System;
+global using global::System.Collections.Generic;
+global using global::System.IO;
+global using global::System.Linq;
+global using global::System.Net.Http;
+global using global::System.Net.Http.Json;
+global using global::System.Threading;
+global using global::System.Threading.Tasks;
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//     Runtime Version:4.0.30319.42000
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: Microsoft.AspNetCore.Mvc.ApplicationParts.ApplicationPartAttribute("Asp.Versioning.Mvc.ApiExplorer")]
+[assembly: Microsoft.AspNetCore.Mvc.ApplicationParts.ApplicationPartAttribute("Asp.Versioning.Mvc")]
+[assembly: Microsoft.AspNetCore.Mvc.ApplicationParts.ApplicationPartAttribute("Swashbuckle.AspNetCore.SwaggerGen")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+using TemplateNet8.Api.Infra.Extensions;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddApiSetup();
+
+var app = builder.Build();
+
+app.UseApiSetup();
+
+await app.RunAsync();
+
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace TemplateNet8.Domain.Common
+{
+    public class Result
+    {
+        public bool IsSuccess { get; }
+        public bool IsFailure => !IsSuccess;
+        public string? Error { get; }
+
+        protected Result(bool isSuccess, string? error)
+        {
+            IsSuccess = isSuccess;
+            Error = error;
+        }
+
+        public static Result Success() => new Result(true, null);
+        public static Result Failure(string error) => new Result(false, error);
+
+        public static Result<T> Success<T>(T value) => new Result<T>(value, true, null);
+        public static Result<T> Failure<T>(string error) => new Result<T>(default!, false, error);
+
+
+    }
+
+    public class Result<T> : Result
+    {
+        private readonly T? _value;
+
+        public T Value => IsSuccess ? _value! : throw new InvalidOperationException("Não é possível acessar o valor de um Result com falha.");
+
+        protected internal Result(T? value, bool isSuccess, string error)
+            : base(isSuccess, error)
+        {
+            _value = value;
+        }
+    }
+}
+// <autogenerated />
+using System;
+using System.Reflection;
+[assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v8.0", FrameworkDisplayName = ".NET 8.0")]
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//     Runtime Version:4.0.30319.42000
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: System.Reflection.AssemblyCompanyAttribute("TemplateNet8.Domain")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyProductAttribute("TemplateNet8.Domain")]
+[assembly: System.Reflection.AssemblyTitleAttribute("TemplateNet8.Domain")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+// <auto-generated/>
+global using global::System;
+global using global::System.Collections.Generic;
+global using global::System.IO;
+global using global::System.Linq;
+global using global::System.Net.Http;
+global using global::System.Threading;
+global using global::System.Threading.Tasks;

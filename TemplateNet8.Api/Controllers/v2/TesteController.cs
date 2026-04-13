@@ -1,0 +1,28 @@
+﻿using Asp.Versioning;
+using Microsoft.AspNetCore.Mvc;
+using TemplateNet8.Domain.Common;
+
+namespace TemplateNet8.Api.Controllers.v2
+
+{
+    [ApiVersion("2.0")]
+    [Route("api/v{version:apiVersion}/[controller]")]
+    public class TesteController : MainController   
+    {
+        [HttpGet]
+        public IActionResult Get()
+        {
+            //return Ok("Template Api Teste v2 ");
+
+            var dadoParaRetornar = new
+            {
+                Message = "Template Api Teste v2",
+                Version = HttpContext.GetRequestedApiVersion()?.ToString() ?? "Unknown"
+            };
+
+            var result = Result.Success(dadoParaRetornar);
+
+            return CustomResponse(result);
+        }
+    }
+}
