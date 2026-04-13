@@ -1,5 +1,6 @@
 ﻿using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
+using TemplateNet8.Domain.Common;
 
 namespace TemplateNet8.Api.Controllers.v1
 {
@@ -10,20 +11,21 @@ namespace TemplateNet8.Api.Controllers.v1
         [HttpGet]
         public IActionResult Get()
         {
-            //return Ok("Template Api Teste v1 ");
-
-            var result = new
+            var dadoParaRetornar = new
             {
                 Message = "Template Api Teste v1",
                 Version = HttpContext.GetRequestedApiVersion()?.ToString() ?? "Unknown"
             };
 
-            return (IActionResult)Results.Ok(result);
+            var result = Result.Success(dadoParaRetornar);
+
+            return CustomResponse(result);
         }
     }
 }
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
+using TemplateNet8.Domain.Common;
 
 namespace TemplateNet8.Api.Controllers.v2
 
@@ -37,23 +39,39 @@ namespace TemplateNet8.Api.Controllers.v2
         {
             //return Ok("Template Api Teste v2 ");
 
-            var result = new
+            var dadoParaRetornar = new
             {
                 Message = "Template Api Teste v2",
                 Version = HttpContext.GetRequestedApiVersion()?.ToString() ?? "Unknown"
             };
 
-            return (IActionResult)Results.Ok(result);
+            var result = Result.Success(dadoParaRetornar);
+
+            return CustomResponse(result);
         }
     }
 }
 using Microsoft.AspNetCore.Mvc;
+using TemplateNet8.Domain.Common;
 
 namespace TemplateNet8.Api.Controllers
 {
     [ApiController]
     public class MainController : ControllerBase
     {
+        protected IActionResult CustomResponse(Result result)
+        {
+            if (result.IsSuccess)
+            {
+                return Ok(result);
+            }
+
+            return BadRequest(new
+            {
+                success = false,
+                errors = new[] { result.Error }
+            });
+        }
     }
 }
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -208,7 +226,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TemplateNet8.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+63781743528746d4e27973eaaf8ca3b3c521eb13")]
 [assembly: System.Reflection.AssemblyProductAttribute("TemplateNet8.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TemplateNet8.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
