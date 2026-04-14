@@ -1,8 +1,28 @@
 ﻿using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
-using TemplateNet8.Domain.Common;
+using Catalog.Application.UseCases.Categories;
+using Catalog.Application.UseCases.Categories.ListAll;
 
-namespace TemplateNet8.Api.Controllers.v1
+namespace Catalog.Api.Controllers.v1
+{
+    [ApiVersion("1.0")]
+    [Route("api/v{version:apiVersion}/[controller]")]
+    public class CategoriesController(ICategoryService categoryService) : MainController
+    {
+        [HttpGet]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<ActionResult<IEnumerable<CategoryResponse>>> GetAll(CancellationToken cancellationToken)
+        {
+            var categories = await categoryService.HandleAsync(new ListAllCategoryQuery(), cancellationToken);
+            return Ok(categories);
+        }
+    }
+}
+using Asp.Versioning;
+using Microsoft.AspNetCore.Mvc;
+using Catalog.Domain.Common;
+
+namespace Catalog.Api.Controllers.v1
 {
     [ApiVersion("1.0")]
     [Route("api/v{version:apiVersion}/[controller]")]
@@ -25,9 +45,9 @@ namespace TemplateNet8.Api.Controllers.v1
 }
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
-using TemplateNet8.Domain.Common;
+using Catalog.Domain.Common;
 
-namespace TemplateNet8.Api.Controllers.v2
+namespace Catalog.Api.Controllers.v2
 
 {
     [ApiVersion("2.0")]
@@ -52,9 +72,9 @@ namespace TemplateNet8.Api.Controllers.v2
     }
 }
 using Microsoft.AspNetCore.Mvc;
-using TemplateNet8.Domain.Common;
+using Catalog.Domain.Common;
 
-namespace TemplateNet8.Api.Controllers
+namespace Catalog.Api.Controllers
 {
     [ApiController]
     public class MainController : ControllerBase
@@ -76,7 +96,7 @@ namespace TemplateNet8.Api.Controllers
 }
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
-namespace TemplateNet8.Api.Infra.Extensions
+namespace Catalog.Api.Infra.Extensions
 {
     public static class ApiHealthCkecksSetup
     {
@@ -95,25 +115,26 @@ namespace TemplateNet8.Api.Infra.Extensions
         }
     }
 }
-namespace TemplateNet8.Api.Infra.Extensions
+using Catalog.CrossCutting;
+
+namespace Catalog.Api.Infra.Extensions
 {
     public static class ApiSetup
     {
-        public static void AddApiSetup(this IServiceCollection services)
+        public static void AddApiSetup(this IServiceCollection services, IConfiguration configuration)
         {
             services.AddControllers();
             services.AddApiVersioningSetup();
             services.AddEndpointsApiExplorer();
             services.AddApiSwaggerSetup();
             services.AddHealthChecks();
+            services.AddCrossCuttingDependenccies(configuration);
         }
 
         public static void UseApiSetup(this WebApplication app)
         {
-            if(app.Environment.IsDevelopment())
-            {
-                app.UseApiSwaggerSetup();
-            }
+
+            app.UseApiSwaggerSetup();
             app.UseApiHealthChecks();
 
             app.MapControllers();
@@ -125,7 +146,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
-namespace TemplateNet8.Api.Infra.Extensions
+namespace Catalog.Api.Infra.Extensions
 {
     public static class ApiSwaggerSetup
     {
@@ -166,9 +187,9 @@ namespace TemplateNet8.Api.Infra.Extensions
         {
             return new OpenApiInfo
             {
-                Title = $"TemplateNet8 API {description.ApiVersion}",
+                Title = $"Catalog API {description.ApiVersion}",
                 Version = description.ApiVersion.ToString(),
-                Description = "<p>API <strong>documentation</strong> for TemplateNet8.</p>",
+                Description = "<p>API <strong>documentation</strong> for Catalog.</p>",
                 Contact = new OpenApiContact
                 {
                     Name = "Renato Souza",
@@ -181,7 +202,7 @@ namespace TemplateNet8.Api.Infra.Extensions
 }
 using Asp.Versioning;
 
-namespace TemplateNet8.Api.Infra.Extensions
+namespace Catalog.Api.Infra.Extensions
 {
     public static class ApiVersioningSetup
     {
@@ -223,33 +244,33 @@ using System;
 using System.Reflection;
 
 [assembly: Microsoft.Extensions.Configuration.UserSecrets.UserSecretsIdAttribute("5d32681b-f284-452d-afe1-615d6f3a23b5")]
-[assembly: System.Reflection.AssemblyCompanyAttribute("TemplateNet8.Api")]
+[assembly: System.Reflection.AssemblyCompanyAttribute("Catalog.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+63781743528746d4e27973eaaf8ca3b3c521eb13")]
-[assembly: System.Reflection.AssemblyProductAttribute("TemplateNet8.Api")]
-[assembly: System.Reflection.AssemblyTitleAttribute("TemplateNet8.Api")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c30d5c66db2addd26e4c940407ff4f8e034cb9df")]
+[assembly: System.Reflection.AssemblyProductAttribute("Catalog.Api")]
+[assembly: System.Reflection.AssemblyTitleAttribute("Catalog.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
 
 // Generated by the MSBuild WriteCodeFragment class.
 
 // <auto-generated/>
-global using global::Microsoft.AspNetCore.Builder;
-global using global::Microsoft.AspNetCore.Hosting;
-global using global::Microsoft.AspNetCore.Http;
-global using global::Microsoft.AspNetCore.Routing;
-global using global::Microsoft.Extensions.Configuration;
-global using global::Microsoft.Extensions.DependencyInjection;
-global using global::Microsoft.Extensions.Hosting;
-global using global::Microsoft.Extensions.Logging;
-global using global::System;
-global using global::System.Collections.Generic;
-global using global::System.IO;
-global using global::System.Linq;
-global using global::System.Net.Http;
-global using global::System.Net.Http.Json;
-global using global::System.Threading;
-global using global::System.Threading.Tasks;
+global using Microsoft.AspNetCore.Builder;
+global using Microsoft.AspNetCore.Hosting;
+global using Microsoft.AspNetCore.Http;
+global using Microsoft.AspNetCore.Routing;
+global using Microsoft.Extensions.Configuration;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.Hosting;
+global using Microsoft.Extensions.Logging;
+global using System;
+global using System.Collections.Generic;
+global using System.IO;
+global using System.Linq;
+global using System.Net.Http;
+global using System.Net.Http.Json;
+global using System.Threading;
+global using System.Threading.Tasks;
 //------------------------------------------------------------------------------
 // <auto-generated>
 //     This code was generated by a tool.
@@ -269,13 +290,22 @@ using System.Reflection;
 
 // Generated by the MSBuild WriteCodeFragment class.
 
-using TemplateNet8.Api.Infra.Extensions;
+using Catalog.Api.Infra.Extensions;
+
+using Catalog.Data.Context;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddApiSetup();
+builder.Services.AddApiSetup(builder.Configuration);
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+    await db.Database.MigrateAsync();
+}
 
 app.UseApiSetup();
 
@@ -288,7 +318,742 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TemplateNet8.Domain.Common
+namespace Catalog.Application.Contracts
+{
+    public interface IRequest
+    {
+    }
+}
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Application.Contracts
+{
+    public interface IRequestHandler<TRequest, TResponse>
+        where TRequest : IRequest
+    {
+        Task<TResponse> HandleAsync(TRequest request, CancellationToken cancellationToken = default);
+    }
+}
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Application.Contracts
+{
+    public interface IResponse
+    {
+    }
+}
+// <autogenerated />
+using System;
+using System.Reflection;
+[assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v8.0", FrameworkDisplayName = ".NET 8.0")]
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//     Runtime Version:4.0.30319.42000
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: System.Reflection.AssemblyCompanyAttribute("Catalog.Application")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c30d5c66db2addd26e4c940407ff4f8e034cb9df")]
+[assembly: System.Reflection.AssemblyProductAttribute("Catalog.Application")]
+[assembly: System.Reflection.AssemblyTitleAttribute("Catalog.Application")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+// <auto-generated/>
+global using System;
+global using System.Collections.Generic;
+global using System.IO;
+global using System.Linq;
+global using System.Net.Http;
+global using System.Threading;
+global using System.Threading.Tasks;
+using Catalog.Application.Contracts;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Application.UseCases.Categories.ListAll
+{
+    public interface IListAllCategoryQueryHandler : IRequestHandler<ListAllCategoryQuery, IEnumerable<CategoryResponse>>;
+    
+}
+using Catalog.Application.Contracts;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Application.UseCases.Categories.ListAll
+{
+    public class ListAllCategoryQuery : IRequest
+    {
+    }
+}
+using Catalog.Application.Contracts;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Application.UseCases.Categories
+{
+    public class CategoryResponse : IResponse
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = null!;
+    }
+}
+using Catalog.Application.UseCases.Categories.ListAll;
+using Catalog.Domain.Contracts.Repositories;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Application.UseCases.Categories
+{
+    public class CategoryService (ICategoryRepository categoryRepository) : ICategoryService
+    {
+        public async Task<IEnumerable<CategoryResponse>> HandleAsync(ListAllCategoryQuery request, CancellationToken cancellationToken = default)
+        {
+            var categories = await categoryRepository.GetAllAsync(cancellationToken);
+            return categories.Select(x => x.ToResponse());    
+  
+        }
+    }
+}
+using Catalog.Application.UseCases.Categories.ListAll;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Application.UseCases.Categories
+{
+    public interface ICategoryService : IListAllCategoryQueryHandler;
+
+}
+using Catalog.Domain.Entities;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Application.UseCases.Categories
+{
+    public static class Mappers
+    {
+        public static CategoryResponse ToResponse(this Category category)
+        {
+            return new CategoryResponse
+            {
+                Id = category.Id,
+                Name = category.Name
+            };
+        }
+    }
+}
+// <autogenerated />
+using System;
+using System.Reflection;
+[assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v8.0", FrameworkDisplayName = ".NET 8.0")]
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//     Runtime Version:4.0.30319.42000
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: System.Reflection.AssemblyCompanyAttribute("Catalog.CrossCutting")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c30d5c66db2addd26e4c940407ff4f8e034cb9df")]
+[assembly: System.Reflection.AssemblyProductAttribute("Catalog.CrossCutting")]
+[assembly: System.Reflection.AssemblyTitleAttribute("Catalog.CrossCutting")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+// <auto-generated/>
+global using System;
+global using System.Collections.Generic;
+global using System.IO;
+global using System.Linq;
+global using System.Net.Http;
+global using System.Threading;
+global using System.Threading.Tasks;
+using Catalog.Application.UseCases.Categories;
+using Catalog.Data.Context;
+using Catalog.Data.Repositories;
+using Catalog.Domain.Contracts.Infra;
+using Catalog.Domain.Contracts.Repositories;
+using Catalog.Domain.Excepitions.Infra;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
+
+namespace Catalog.CrossCutting
+{
+    public static class DependencyInjectionSetup
+    {
+        public static void AddCrossCuttingDependenccies(this IServiceCollection services, IConfiguration configuration)
+        {
+            services.AddApplicationServices();
+            services.AddDataServices(configuration);
+        }
+        private static void AddApplicationServices(this IServiceCollection services)
+        {
+            services.AddTransient<ICategoryService, CategoryService>();
+        }
+
+        private static void AddDataServices(this IServiceCollection services, IConfiguration configuration)
+        {
+            services.AddTransient<ICategoryRepository, CategoryRepository>();
+            services.AddTransient<IProductRepository, ProductRepository>();
+
+            services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+            var connection = configuration.GetConnectionString("DbConnection") ?? throw new ConnectionStringReferenceException("Connection string 'DbConnection' not found.");
+
+            services.AddDbContext<CatalogDbContext>(options =>                
+                options.UseSqlServer(connection)
+
+            );
+        }
+    }
+}
+using Catalog.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+
+namespace Catalog.Data.Context
+{
+    public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbContext (options)
+    {
+        public DbSet<Product> Products => Set<Product>();
+        public DbSet<Category> Categories => Set<Category>();
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.ApplyConfigurationsFromAssembly(typeof(CatalogDbContext).Assembly);
+        }
+    }
+}
+using Catalog.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Catalog.Data.Map
+{
+    public class CategoryMap : IEntityTypeConfiguration<Category>
+    {
+        public void Configure(EntityTypeBuilder<Category> builder)
+        {
+            builder.ToTable(nameof(Category));
+            builder.HasKey(c => c.Id);
+            builder.Property(c => c.Name)
+                .IsRequired()
+                .HasMaxLength(100);
+        }
+    }
+}
+using Catalog.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Data.Map
+{
+    public class ProductMap : IEntityTypeConfiguration<Product>
+    {
+        public void Configure(EntityTypeBuilder<Product> builder)
+        {
+            builder.ToTable(nameof(Product));
+            builder.HasKey(p => p.Id);
+            builder.Property(p => p.Name)
+                .IsRequired()
+                .HasMaxLength(100);
+            builder.Property(p => p.Price)
+                .IsRequired()
+                .HasColumnType("money");
+            builder.HasOne(p => p.Category)
+                .WithMany(c => c.Products)
+                .HasForeignKey(p => p.CategoryId)
+                .OnDelete(DeleteBehavior.ClientNoAction);
+
+
+        }
+    }
+}
+using System;
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace Catalog.Data.Migrations
+{
+    /// <inheritdoc />
+    public partial class Inicial : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.CreateTable(
+                name: "Category",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Category", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Product",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Price = table.Column<decimal>(type: "money", nullable: false),
+                    CategoryId = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Product", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Product_Category_CategoryId",
+                        column: x => x.CategoryId,
+                        principalTable: "Category",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Product_CategoryId",
+                table: "Product",
+                column: "CategoryId");
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropTable(
+                name: "Product");
+
+            migrationBuilder.DropTable(
+                name: "Category");
+        }
+    }
+}
+// <auto-generated />
+using System;
+using Catalog.Data.Context;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+
+#nullable disable
+
+namespace Catalog.Data.Migrations
+{
+    [DbContext(typeof(CatalogDbContext))]
+    [Migration("20260413210025_Inicial")]
+    partial class Inicial
+    {
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
+        {
+#pragma warning disable 612, 618
+            modelBuilder
+                .HasAnnotation("ProductVersion", "8.0.25")
+                .HasAnnotation("Relational:MaxIdentifierLength", 128);
+
+            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("Catalog.Domain.Entities.Category", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Category", (string)null);
+                });
+
+            modelBuilder.Entity("Catalog.Domain.Entities.Product", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CategoryId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("Price")
+                        .HasColumnType("money");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.ToTable("Product", (string)null);
+                });
+
+            modelBuilder.Entity("Catalog.Domain.Entities.Product", b =>
+                {
+                    b.HasOne("Catalog.Domain.Entities.Category", "Category")
+                        .WithMany("Products")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("Catalog.Domain.Entities.Category", b =>
+                {
+                    b.Navigation("Products");
+                });
+#pragma warning restore 612, 618
+        }
+    }
+}
+// <auto-generated />
+using System;
+using Catalog.Data.Context;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+
+#nullable disable
+
+namespace Catalog.Data.Migrations
+{
+    [DbContext(typeof(CatalogDbContext))]
+    partial class CatalogDbContextModelSnapshot : ModelSnapshot
+    {
+        protected override void BuildModel(ModelBuilder modelBuilder)
+        {
+#pragma warning disable 612, 618
+            modelBuilder
+                .HasAnnotation("ProductVersion", "8.0.25")
+                .HasAnnotation("Relational:MaxIdentifierLength", 128);
+
+            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("Catalog.Domain.Entities.Category", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Category", (string)null);
+                });
+
+            modelBuilder.Entity("Catalog.Domain.Entities.Product", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CategoryId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("Price")
+                        .HasColumnType("money");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.ToTable("Product", (string)null);
+                });
+
+            modelBuilder.Entity("Catalog.Domain.Entities.Product", b =>
+                {
+                    b.HasOne("Catalog.Domain.Entities.Category", "Category")
+                        .WithMany("Products")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("Catalog.Domain.Entities.Category", b =>
+                {
+                    b.Navigation("Products");
+                });
+#pragma warning restore 612, 618
+        }
+    }
+}
+// <autogenerated />
+using System;
+using System.Reflection;
+[assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v8.0", FrameworkDisplayName = ".NET 8.0")]
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//     Runtime Version:4.0.30319.42000
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: System.Reflection.AssemblyCompanyAttribute("Catalog.Data")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c30d5c66db2addd26e4c940407ff4f8e034cb9df")]
+[assembly: System.Reflection.AssemblyProductAttribute("Catalog.Data")]
+[assembly: System.Reflection.AssemblyTitleAttribute("Catalog.Data")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+// <auto-generated/>
+global using System;
+global using System.Collections.Generic;
+global using System.IO;
+global using System.Linq;
+global using System.Net.Http;
+global using System.Threading;
+global using System.Threading.Tasks;
+using Catalog.Data.Context;
+using Catalog.Domain.Contracts.Repositories;
+using Catalog.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Data.Repositories
+{
+    public sealed class CategoryRepository(CatalogDbContext ctx) : GenericRepository<Category>(ctx), ICategoryRepository
+    {
+        public Task<IEnumerable<Category>> GetCategoriesWithProductsAsync(CancellationToken cancellationToken = default) 
+        { 
+            return Task.FromResult(ctx.Categories.Include(c => c.Products).AsEnumerable());
+        }
+
+    }
+}
+using Catalog.Data.Context;
+using Catalog.Domain.Contracts.Repositories;
+using Catalog.Domain.Entities;
+using Catalog.Domain.Excepitions.Domain;
+using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Data.Repositories
+{
+    public class GenericRepository<TEntity>(CatalogDbContext ctx) : RepositoryBase, IGenericRepository<TEntity> where TEntity : EntityBase
+    {
+        public virtual async Task<TEntity> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+        {
+            var data = await ctx.Set<TEntity>().FindAsync(new object[] { id }, cancellationToken);
+
+            if (data == null) throw new EntityNotFoundException($"Entity of type {typeof(TEntity).Name} with id {id} not found.");
+
+            return data;
+        }
+
+        public virtual async Task<IEnumerable<TEntity>> GetAllAsync(CancellationToken cancellationToken = default)
+        {
+            var data = await ctx.Set<TEntity>().AsNoTracking().ToListAsync(cancellationToken); 
+            
+            return data;    
+        }
+
+        public async Task AddAsync(TEntity entity, CancellationToken cancellationToken = default)
+        {
+            await ctx.Set<TEntity>().AddAsync(entity, cancellationToken);
+        }
+        public async Task UpdateAsync(TEntity entity, CancellationToken cancellationToken = default)
+        {
+            Task.FromResult(ctx.Set<TEntity>().Update(entity));
+        }
+
+        public async Task DeleteAsync(TEntity entity, CancellationToken cancellationToken = default)
+        {
+            Task.FromResult(ctx.Set<TEntity>().Remove(entity));
+        }
+
+    }
+}
+using Catalog.Data.Context;
+using Catalog.Domain.Contracts.Repositories;
+using Catalog.Domain.Entities;
+using Catalog.Domain.Excepitions.Domain;
+using Microsoft.EntityFrameworkCore;
+
+namespace Catalog.Data.Repositories
+{
+    public sealed class ProductRepository(CatalogDbContext ctx) : GenericRepository<Product>(ctx), IProductRepository
+    {
+        public override async Task<Product> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+        {
+            var data = await ctx.Products
+                .Include(p => p.Category)
+                .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+            if (data == null) throw new EntityNotFoundException($"Product with id {id} not found.");
+
+            return data;
+        }
+        public Task<IEnumerable<Product>> GetProductsByCategoryAsync(int categoryId, CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
+        }
+    }
+}
+using Catalog.Domain.Contracts.Repositories;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Data.Repositories
+{
+    public class RepositoryBase : IRepository;
+}
+using Catalog.Data.Context;
+using Catalog.Domain.Contracts.Infra;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Data.Repositories
+{
+    public class UnitOfWork(CatalogDbContext ctx) : IUnitOfWork
+    {
+        public Task CommitAsync(CancellationToken cancellationToken = default)
+            => ctx.SaveChangesAsync(cancellationToken);
+
+        public Task RollbackAsync(CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+    }
+}
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Domain.Common
 {
     public class Result
     {
@@ -324,6 +1089,142 @@ namespace TemplateNet8.Domain.Common
         }
     }
 }
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Domain.Contracts.Infra
+{
+    public interface IUnitOfWork
+    {
+        Task CommitAsync(CancellationToken cancellationToken = default);
+        Task RollbackAsync(CancellationToken cancellationToken = default);
+    }
+}
+using Catalog.Domain.Entities;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Domain.Contracts.Repositories
+{
+    public interface ICategoryRepository : IGenericRepository<Category>
+    {
+        Task<IEnumerable<Category>> GetCategoriesWithProductsAsync(CancellationToken cancellationToken = default);  
+    }
+}
+using Catalog.Domain.Entities;
+
+namespace Catalog.Domain.Contracts.Repositories
+{
+    public interface IGenericRepository<TEntity> : IRepository where TEntity : EntityBase
+    {
+        Task AddAsync(TEntity entity, CancellationToken cancellationToken = default );
+        Task UpdateAsync(TEntity entity, CancellationToken cancellationToken = default );
+        Task DeleteAsync(TEntity entity, CancellationToken cancellationToken = default);
+        Task<TEntity> GetByIdAsync(int id, CancellationToken cancellationToken = default);
+        Task<IEnumerable<TEntity>> GetAllAsync(CancellationToken cancellationToken = default);
+    }
+}
+using Catalog.Domain.Entities;
+
+namespace Catalog.Domain.Contracts.Repositories
+{
+    public interface IProductRepository : IGenericRepository<Product>
+    {
+        Task<IEnumerable<Product>> GetProductsByCategoryAsync(int categoryId, CancellationToken cancellationToken = default);
+    }
+}
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Domain.Contracts.Repositories
+{
+    public interface IRepository
+    {
+    }
+}
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Domain.Entities
+{
+    public class Category : EntityBase
+    {
+        public string Name { get; set; } =null!;
+        public IEnumerable<Product> Products { get; set; } = new List<Product>();
+    }
+}
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Domain.Entities
+{
+    public class EntityBase
+    {
+        public int Id { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
+        public DateTime UpdatedAt { get; set; } 
+    }
+}
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Domain.Entities
+{
+    public class Product : EntityBase
+    {
+        public string Name { get; set; } = null!;
+        public decimal Price { get; set; }
+        public int CategoryId { get; set; }
+        public virtual Category? Category { get; set; }
+    }
+}
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Domain.Excepitions.Domain
+{
+    public abstract class DomainException (string msg) : Exception(msg);
+}
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Domain.Excepitions.Domain
+{
+    public class EntityNotFoundException (string msg) : DomainException(msg);
+}
+
+namespace Catalog.Domain.Excepitions.Infra
+{
+    public class ConnectionStringReferenceException (string msg) : InfraException(msg);
+}
+namespace Catalog.Domain.Excepitions.Infra
+{
+    public abstract class InfraException(string msg) : Exception(msg);
+}
 // <autogenerated />
 using System;
 using System.Reflection;
@@ -341,21 +1242,21 @@ using System.Reflection;
 using System;
 using System.Reflection;
 
-[assembly: System.Reflection.AssemblyCompanyAttribute("TemplateNet8.Domain")]
+[assembly: System.Reflection.AssemblyCompanyAttribute("Catalog.Domain")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
-[assembly: System.Reflection.AssemblyProductAttribute("TemplateNet8.Domain")]
-[assembly: System.Reflection.AssemblyTitleAttribute("TemplateNet8.Domain")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c30d5c66db2addd26e4c940407ff4f8e034cb9df")]
+[assembly: System.Reflection.AssemblyProductAttribute("Catalog.Domain")]
+[assembly: System.Reflection.AssemblyTitleAttribute("Catalog.Domain")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
 
 // Generated by the MSBuild WriteCodeFragment class.
 
 // <auto-generated/>
-global using global::System;
-global using global::System.Collections.Generic;
-global using global::System.IO;
-global using global::System.Linq;
-global using global::System.Net.Http;
-global using global::System.Threading;
-global using global::System.Threading.Tasks;
+global using System;
+global using System.Collections.Generic;
+global using System.IO;
+global using System.Linq;
+global using System.Net.Http;
+global using System.Threading;
+global using System.Threading.Tasks;
