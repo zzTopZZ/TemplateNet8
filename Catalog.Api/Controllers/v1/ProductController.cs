@@ -23,7 +23,6 @@ namespace Catalog.Api.Controllers.v1
         }
 
         [HttpGet]
-        //[Route("api/v{version:apiVersion}/products")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
         {
