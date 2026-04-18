@@ -1,0 +1,45 @@
+﻿@page "/products"
+<h3>List of Products </h3>
+
+@if (IsLoading)
+{
+    <div class="d-flex align-items-center">
+        <strong>Carregando...</strong>
+        <div class="spinner-border ms-3" role="status" aria-hidden="true"></div>
+    </div>
+}
+else if (!string.IsNullOrEmpty(ErrorMessage))
+{
+    <div class="alert alert-danger">@ErrorMessage</div>
+}
+else if (!Products.Any())
+{
+    <p>Nenhum produto encontrado.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Price</th>
+                <th>Category</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var product in Products)
+            {
+                <tr>
+                    <td>@product.Name</td>
+                    <td>@(product.Price.ToString("F2"))</td>
+                    <td>@product.Category.Name</td>
+                    <td>
+                        <a class="btn btn-secondary" href="/product/update/@product.Id">Update</a>
+                        <button class="btn btn-danger" @onclick="() => DeleteProductAsync(product.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

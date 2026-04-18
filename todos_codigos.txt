@@ -1,7 +1,7 @@
 ﻿using Asp.Versioning;
-using Microsoft.AspNetCore.Mvc;
 using Catalog.Application.UseCases.Categories;
 using Catalog.Application.UseCases.Categories.ListAll;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Catalog.Api.Controllers.v1
 {
@@ -11,10 +11,73 @@ namespace Catalog.Api.Controllers.v1
     {
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<ActionResult<IEnumerable<CategoryResponse>>> GetAll(CancellationToken cancellationToken)
+        public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
         {
-            var categories = await categoryService.HandleAsync(new ListAllCategoryQuery(), cancellationToken);
-            return Ok(categories);
+            var result = await categoryService.HandleAsync(new ListAllCategoryQuery(), cancellationToken);
+            return CustomResponse(result);
+        }
+    }
+}
+using Asp.Versioning;
+using Catalog.Application.UseCases.Products;
+using Catalog.Application.UseCases.Products.Create;
+using Catalog.Application.UseCases.Products.Delete;
+using Catalog.Application.UseCases.Products.GetById;
+using Catalog.Application.UseCases.Products.ListAll;
+using Catalog.Application.UseCases.Products.Update;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Catalog.Api.Controllers.v1
+{
+    [ApiVersion("1.0")]
+    [Route("api/v{version:apiVersion}/[controller]")]
+    public class ProductController(IProductService productService) : MainController 
+    {
+        [HttpGet("{id:int}", Name = nameof(GetByIdAsync))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetByIdAsync(int id, CancellationToken cancellationToken)
+        {
+            var result = await productService.HandleAsync(new GetByIdProductQuery(id), cancellationToken);
+            return CustomResponse(result);
+        }
+
+        [HttpGet]
+        //[Route("api/v{version:apiVersion}/products")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
+        {
+            var result = await productService.HandleAsync(new ListAllProductQuery(), cancellationToken);
+            return CustomResponse(result);
+        }
+
+        [HttpPost]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> CreateAsync([FromBody] CreateProductQuery query, CancellationToken cancellationToken)
+        {
+            var result = await productService.HandleAsync(query, cancellationToken);
+            //return CustomResponse(result);
+            return CreatedAtRoute(nameof(GetByIdAsync), new { id = result.Value.Id }, result);
+        }
+
+        [HttpPut("{id:int}", Name = nameof(UpdateAsync))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UpdateAsync(int id, [FromBody] UpdateProductQuery query, CancellationToken cancellationToken)
+        {
+            query.Id = id;
+            var result = await productService.HandleAsync(query, cancellationToken);
+            return CustomResponse(result);
+        }
+
+        [HttpDelete("{id:int}", Name = nameof(DeleteAsync))]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DeleteAsync(int id, CancellationToken cancellationToken)
+        {
+            var result = await productService.HandleAsync(new DeleteProductQuery(id), cancellationToken);
+            return CustomResponse(result);
         }
     }
 }
@@ -95,6 +158,7 @@ namespace Catalog.Api.Controllers
     }
 }
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Catalog.Api.Infra.Extensions
 {
@@ -102,7 +166,14 @@ namespace Catalog.Api.Infra.Extensions
     {
         public static void AddApiHealthChecks(this IServiceCollection services, IConfiguration configuration)
         {
-            services.AddHealthChecks();
+            services.AddHealthChecks()
+                .AddSqlServer(
+                    configuration.GetConnectionString("DbConnection"), //?? throw new ConnStringNullReferenceException(""),
+                    name: "SQL Server",
+                    failureStatus: HealthStatus.Unhealthy,
+                    tags: new[] { "db", "sql" }
+                );
+
         }
 
         public static void UseApiHealthChecks(this IApplicationBuilder app)
@@ -112,10 +183,40 @@ namespace Catalog.Api.Infra.Extensions
                 Predicate = _ => false,
 
             });
+
+            app.UseHealthChecks("/health/tags/db", new HealthCheckOptions
+            {
+                Predicate = registration => registration.Tags.Contains("db"),
+
+            });
+
+            app.UseHealthChecks("/health/details", new HealthCheckOptions
+            {
+                Predicate = _ => true,
+                ResponseWriter = async (context, report) =>
+                {
+                    context.Response.ContentType = "application/json";
+                    var result = new
+                    {
+                        status = report.Status.ToString(),
+                        checks = report.Entries.Select(entry => new
+                        {
+                            name = entry.Key,
+                            status = entry.Value.Status.ToString(),
+                            exception = entry.Value.Exception?.Message,
+                            duration = entry.Value.Duration.ToString()
+                        })
+                    };
+                    await context.Response.WriteAsJsonAsync(result);
+                }
+
+            });
         }
     }
 }
+using Catalog.Api.Infra.Filters;
 using Catalog.CrossCutting;
+using Microsoft.Net.Http.Headers;
 
 namespace Catalog.Api.Infra.Extensions
 {
@@ -123,17 +224,28 @@ namespace Catalog.Api.Infra.Extensions
     {
         public static void AddApiSetup(this IServiceCollection services, IConfiguration configuration)
         {
-            services.AddControllers();
+            services.AddControllers(options =>
+            {
+                options.Filters.Add(typeof(CustonExceptionFilter));
+            });
             services.AddApiVersioningSetup();
             services.AddEndpointsApiExplorer();
             services.AddApiSwaggerSetup();
-            services.AddHealthChecks();
+            services.AddApiHealthChecks(configuration);
             services.AddCrossCuttingDependenccies(configuration);
+            services.AddCors();
         }
 
         public static void UseApiSetup(this WebApplication app)
         {
-
+            app.UseCors(policy => 
+            {
+                policy.WithOrigins("https://localhost:7196", "http://localhost:5172")
+                .AllowAnyMethod()
+                .WithHeaders(
+                    HeaderNames.ContentType);
+                
+            });
             app.UseApiSwaggerSetup();
             app.UseApiHealthChecks();
 
@@ -226,6 +338,44 @@ namespace Catalog.Api.Infra.Extensions
         }
     }
 }
+using Catalog.Domain.Excepitions.Domain;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
+
+namespace Catalog.Api.Infra.Filters
+{
+    public class CustonExceptionFilter (IHostEnvironment env) : IExceptionFilter
+    {
+        public void OnException(ExceptionContext context)
+        {
+            var details = new ProblemDetails();
+            switch (context.Exception) 
+            {
+                case EntityNotFoundException ex:
+                    details.Title = "Recurso não encontrado";
+                    details.Detail = ex.Message;
+                    details.Status = StatusCodes.Status404NotFound;
+                    //context.Result = new NotFoundObjectResult(details);
+                    break;
+                default:
+                    details.Title = "Ocorreu um erro inesperado";
+                    if (env.IsDevelopment()) 
+                    {
+                        details.Detail = context.Exception.Message;
+                        details.Extensions["StackTrace"] = context.Exception.StackTrace;
+                    }
+                    details.Status = StatusCodes.Status500InternalServerError;
+                    details.Type = "InternalServerError";
+                    break;
+            };
+            context.ExceptionHandled = true;
+            context.Result = new ObjectResult(details)
+            { 
+                StatusCode = details.Status 
+            };            
+        }
+    }
+}
 // <autogenerated />
 using System;
 using System.Reflection;
@@ -247,7 +397,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Catalog.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c30d5c66db2addd26e4c940407ff4f8e034cb9df")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bfb5bc62f4952fc410c632eeed1095dc6103e4b1")]
 [assembly: System.Reflection.AssemblyProductAttribute("Catalog.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Catalog.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
@@ -255,22 +405,22 @@ using System.Reflection;
 // Generated by the MSBuild WriteCodeFragment class.
 
 // <auto-generated/>
-global using Microsoft.AspNetCore.Builder;
-global using Microsoft.AspNetCore.Hosting;
-global using Microsoft.AspNetCore.Http;
-global using Microsoft.AspNetCore.Routing;
-global using Microsoft.Extensions.Configuration;
-global using Microsoft.Extensions.DependencyInjection;
-global using Microsoft.Extensions.Hosting;
-global using Microsoft.Extensions.Logging;
-global using System;
-global using System.Collections.Generic;
-global using System.IO;
-global using System.Linq;
-global using System.Net.Http;
-global using System.Net.Http.Json;
-global using System.Threading;
-global using System.Threading.Tasks;
+global using global::Microsoft.AspNetCore.Builder;
+global using global::Microsoft.AspNetCore.Hosting;
+global using global::Microsoft.AspNetCore.Http;
+global using global::Microsoft.AspNetCore.Routing;
+global using global::Microsoft.Extensions.Configuration;
+global using global::Microsoft.Extensions.DependencyInjection;
+global using global::Microsoft.Extensions.Hosting;
+global using global::Microsoft.Extensions.Logging;
+global using global::System;
+global using global::System.Collections.Generic;
+global using global::System.IO;
+global using global::System.Linq;
+global using global::System.Net.Http;
+global using global::System.Net.Http.Json;
+global using global::System.Threading;
+global using global::System.Threading.Tasks;
 //------------------------------------------------------------------------------
 // <auto-generated>
 //     This code was generated by a tool.
@@ -324,6 +474,7 @@ namespace Catalog.Application.Contracts
     {
     }
 }
+using Catalog.Domain.Common;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -335,7 +486,7 @@ namespace Catalog.Application.Contracts
     public interface IRequestHandler<TRequest, TResponse>
         where TRequest : IRequest
     {
-        Task<TResponse> HandleAsync(TRequest request, CancellationToken cancellationToken = default);
+        Task<Result<TResponse>> HandleAsync(TRequest request, CancellationToken cancellationToken = default);
     }
 }
 using System;
@@ -370,7 +521,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Catalog.Application")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c30d5c66db2addd26e4c940407ff4f8e034cb9df")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bfb5bc62f4952fc410c632eeed1095dc6103e4b1")]
 [assembly: System.Reflection.AssemblyProductAttribute("Catalog.Application")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Catalog.Application")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
@@ -378,13 +529,13 @@ using System.Reflection;
 // Generated by the MSBuild WriteCodeFragment class.
 
 // <auto-generated/>
-global using System;
-global using System.Collections.Generic;
-global using System.IO;
-global using System.Linq;
-global using System.Net.Http;
-global using System.Threading;
-global using System.Threading.Tasks;
+global using global::System;
+global using global::System.Collections.Generic;
+global using global::System.IO;
+global using global::System.Linq;
+global using global::System.Net.Http;
+global using global::System.Threading;
+global using global::System.Threading.Tasks;
 using Catalog.Application.Contracts;
 using System;
 using System.Collections.Generic;
@@ -395,7 +546,6 @@ using System.Threading.Tasks;
 namespace Catalog.Application.UseCases.Categories.ListAll
 {
     public interface IListAllCategoryQueryHandler : IRequestHandler<ListAllCategoryQuery, IEnumerable<CategoryResponse>>;
-    
 }
 using Catalog.Application.Contracts;
 using System;
@@ -425,7 +575,9 @@ namespace Catalog.Application.UseCases.Categories
         public string Name { get; set; } = null!;
     }
 }
+using Catalog.Application.Contracts;
 using Catalog.Application.UseCases.Categories.ListAll;
+using Catalog.Domain.Common;
 using Catalog.Domain.Contracts.Repositories;
 using System;
 using System.Collections.Generic;
@@ -437,11 +589,16 @@ namespace Catalog.Application.UseCases.Categories
 {
     public class CategoryService (ICategoryRepository categoryRepository) : ICategoryService
     {
-        public async Task<IEnumerable<CategoryResponse>> HandleAsync(ListAllCategoryQuery request, CancellationToken cancellationToken = default)
+        public async Task<Result<IEnumerable<CategoryResponse>>> HandleAsync(ListAllCategoryQuery request, CancellationToken cancellationToken = default)
         {
             var categories = await categoryRepository.GetAllAsync(cancellationToken);
-            return categories.Select(x => x.ToResponse());    
-  
+
+            if (!categories.Any())
+                return Result.Failure<IEnumerable<CategoryResponse>>("Nenhuma categoria encontrada");
+
+            //return categories.Select(x => x.ToResponse());    
+            return Result.Success(categories.Select(x => x.ToResponse()));
+
         }
     }
 }
@@ -478,6 +635,242 @@ namespace Catalog.Application.UseCases.Categories
         }
     }
 }
+using Catalog.Application.Contracts;
+using System.ComponentModel.DataAnnotations;
+
+namespace Catalog.Application.UseCases.Products.Create
+{
+    public class CreateProductQuery : IRequest
+    {
+        [Required]
+        public string? Name { get; set; }
+        [Range(0.1, double.MaxValue)]
+        public decimal Price { get; set; }
+        [Required]
+        public int? CategoryId { get; set; }
+    }
+}
+using Catalog.Application.Contracts;
+
+namespace Catalog.Application.UseCases.Products.Create
+{
+    public interface ICreateProductQueryHandler : IRequestHandler<CreateProductQuery, ProductResponse>;
+}
+using Catalog.Application.Contracts;
+using System.ComponentModel.DataAnnotations;
+
+namespace Catalog.Application.UseCases.Products.Delete
+{
+    public class DeleteProductQuery (int id) : IRequest
+    {
+        public int Id { get; set; } = id;   
+    }
+}
+using Catalog.Application.Contracts;
+
+namespace Catalog.Application.UseCases.Products.Delete
+{
+    public interface IDeleteProductQueryHandler : IRequestHandler<DeleteProductQuery, bool>;
+}
+using Catalog.Application.Contracts;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Application.UseCases.Products.GetById
+{
+    public class GetByIdProductQuery (int id) : IRequest
+    {
+        public int Id { get; set; } = id;
+    }
+}
+using Catalog.Application.Contracts;
+
+namespace Catalog.Application.UseCases.Products.GetById
+{
+    public interface IGetByIdProductQueryHandler : IRequestHandler<GetByIdProductQuery, ProductResponse>;
+}
+using Catalog.Application.Contracts;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Application.UseCases.Products.ListAll
+{
+    public interface IListAllProductQueryHandler : IRequestHandler<ListAllProductQuery, IEnumerable<ProductResponse>>;
+}
+using Catalog.Application.Contracts;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Application.UseCases.Products.ListAll
+{
+    public class ListAllProductQuery : IRequest
+    {
+    }
+}
+using Catalog.Application.Contracts;
+
+namespace Catalog.Application.UseCases.Products.Update
+{
+    public interface IUpdateProductQueryHandler : IRequestHandler<UpdateProductQuery, bool>;
+}
+using Catalog.Application.Contracts;
+using System.ComponentModel.DataAnnotations;
+
+namespace Catalog.Application.UseCases.Products.Update
+{
+    public class UpdateProductQuery : IRequest
+    {
+        public int Id { get; set; }
+        [Required]
+        public string? Name { get; set; }
+        [Required]
+        [Range(0.01, double.MaxValue, ErrorMessage = "Price must be greater than zero.")]
+        public decimal? Price { get; set; }
+    }
+}
+using Catalog.Application.UseCases.Products.Create;
+using Catalog.Application.UseCases.Products.Delete;
+using Catalog.Application.UseCases.Products.GetById;
+using Catalog.Application.UseCases.Products.ListAll;
+using Catalog.Application.UseCases.Products.Update;
+
+namespace Catalog.Application.UseCases.Products
+{
+    public interface IProductService : 
+        IListAllProductQueryHandler, IGetByIdProductQueryHandler, 
+        ICreateProductQueryHandler, IUpdateProductQueryHandler, IDeleteProductQueryHandler;
+}
+using Catalog.Domain.Entities;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Application.UseCases.Products
+{
+    public static class Mapper
+    {
+        public static ProductResponse ToResponse(this Product product)
+        {
+            return new ProductResponse
+            {
+                Id = product.Id,
+                Name = product.Name,
+                Price = product.Price,
+                CategoryId = product.CategoryId,
+                Category = new CategoryProductResponse
+                {
+                    Id = product.CategoryId,
+                    Name = product.Category?.Name ?? string.Empty
+                }
+            };
+        }
+    }
+}
+using Catalog.Application.Contracts;
+using Catalog.Domain.Entities;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.Application.UseCases.Products
+{
+    public class ProductResponse : IResponse
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = null!;
+        public decimal Price { get; set; }
+        public int CategoryId { get; set; }
+        public CategoryProductResponse Category { get; set; } = null!;
+    }
+
+    public class CategoryProductResponse
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = null!;
+    }
+}
+using Catalog.Application.UseCases.Products.Create;
+using Catalog.Application.UseCases.Products.Delete;
+using Catalog.Application.UseCases.Products.GetById;
+using Catalog.Application.UseCases.Products.ListAll;
+using Catalog.Application.UseCases.Products.Update;
+using Catalog.Domain.Common;
+using Catalog.Domain.Contracts.Infra;
+using Catalog.Domain.Contracts.Repositories;
+using Catalog.Domain.Entities;
+
+namespace Catalog.Application.UseCases.Products
+{
+    public class ProductService (IProductRepository productRepository, IUnitOfWork unitOfWork) : IProductService
+    {
+        public async Task<Result<IEnumerable<ProductResponse>>> HandleAsync(ListAllProductQuery request, CancellationToken cancellationToken = default)
+        {
+            var products = await productRepository.GetAllAsync(cancellationToken);
+        
+            if (!products.Any())
+                return Result.Failure<IEnumerable<ProductResponse>>("Nenhuma produto encontrada");
+
+            return Result.Success(products.Select(x => x.ToResponse()));
+
+        }
+
+        public async Task<Result<ProductResponse>> HandleAsync(GetByIdProductQuery request, CancellationToken cancellationToken = default)
+        {
+            var product = await productRepository.GetByIdAsync(request.Id, cancellationToken);
+
+            if(product is null)
+                return Result.Failure<ProductResponse>("Produto não encontrado");
+
+            return Result.Success(product.ToResponse());
+        }
+
+        public async Task<Result<ProductResponse>> HandleAsync(CreateProductQuery request, CancellationToken cancellationToken = default)
+        {
+            var product = new Product(request.Name!, request.Price, (int)request.CategoryId!.Value);
+            await productRepository.AddAsync(product, cancellationToken);
+            await unitOfWork.CommitAsync(cancellationToken);
+            return Result.Success(product.ToResponse());
+        }
+
+        public async Task<Result<bool>> HandleAsync(UpdateProductQuery request, CancellationToken cancellationToken = default)
+        {
+            var product = await productRepository.GetByIdAsync(request.Id, cancellationToken);
+
+            if (product is null)
+                return Result.Failure<bool>("Produto não encontrado");
+
+            product.Update(request.Name!, (decimal)request.Price!);
+            await productRepository.UpdateAsync(product, cancellationToken);
+            await unitOfWork.CommitAsync(cancellationToken);
+            return Result.Success(true);
+        }
+
+        public async Task<Result<bool>> HandleAsync(DeleteProductQuery request, CancellationToken cancellationToken = default)
+        {
+            var product = await productRepository.GetByIdAsync(request.Id, cancellationToken);
+
+            if (product is null)
+                return Result.Failure<bool>("Produto não encontrado");
+
+            await productRepository.DeleteAsync(product, cancellationToken);
+            await unitOfWork.CommitAsync(cancellationToken);
+            return Result.Success(true);
+        }
+    }
+}
 // <autogenerated />
 using System;
 using System.Reflection;
@@ -498,7 +891,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Catalog.CrossCutting")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c30d5c66db2addd26e4c940407ff4f8e034cb9df")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bfb5bc62f4952fc410c632eeed1095dc6103e4b1")]
 [assembly: System.Reflection.AssemblyProductAttribute("Catalog.CrossCutting")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Catalog.CrossCutting")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
@@ -506,14 +899,15 @@ using System.Reflection;
 // Generated by the MSBuild WriteCodeFragment class.
 
 // <auto-generated/>
-global using System;
-global using System.Collections.Generic;
-global using System.IO;
-global using System.Linq;
-global using System.Net.Http;
-global using System.Threading;
-global using System.Threading.Tasks;
+global using global::System;
+global using global::System.Collections.Generic;
+global using global::System.IO;
+global using global::System.Linq;
+global using global::System.Net.Http;
+global using global::System.Threading;
+global using global::System.Threading.Tasks;
 using Catalog.Application.UseCases.Categories;
+using Catalog.Application.UseCases.Products;
 using Catalog.Data.Context;
 using Catalog.Data.Repositories;
 using Catalog.Domain.Contracts.Infra;
@@ -536,6 +930,7 @@ namespace Catalog.CrossCutting
         private static void AddApplicationServices(this IServiceCollection services)
         {
             services.AddTransient<ICategoryService, CategoryService>();
+            services.AddTransient<IProductService, ProductService>();
         }
 
         private static void AddDataServices(this IServiceCollection services, IConfiguration configuration)
@@ -908,7 +1303,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Catalog.Data")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c30d5c66db2addd26e4c940407ff4f8e034cb9df")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bfb5bc62f4952fc410c632eeed1095dc6103e4b1")]
 [assembly: System.Reflection.AssemblyProductAttribute("Catalog.Data")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Catalog.Data")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
@@ -916,13 +1311,13 @@ using System.Reflection;
 // Generated by the MSBuild WriteCodeFragment class.
 
 // <auto-generated/>
-global using System;
-global using System.Collections.Generic;
-global using System.IO;
-global using System.Linq;
-global using System.Net.Http;
-global using System.Threading;
-global using System.Threading.Tasks;
+global using global::System;
+global using global::System.Collections.Generic;
+global using global::System.IO;
+global using global::System.Linq;
+global using global::System.Net.Http;
+global using global::System.Threading;
+global using global::System.Threading.Tasks;
 using Catalog.Data.Context;
 using Catalog.Domain.Contracts.Repositories;
 using Catalog.Domain.Entities;
@@ -1011,6 +1406,14 @@ namespace Catalog.Data.Repositories
 
             return data;
         }
+
+        public override async Task<IEnumerable<Product>> GetAllAsync(CancellationToken cancellationToken = default)
+        {
+            return await ctx.Products
+                .Include(p => p.Category)
+                .ToListAsync(cancellationToken);
+        }
+
         public Task<IEnumerable<Product>> GetProductsByCategoryAsync(int categoryId, CancellationToken cancellationToken = default)
         {
             throw new NotImplementedException();
@@ -1190,10 +1593,25 @@ namespace Catalog.Domain.Entities
 {
     public class Product : EntityBase
     {
+        public Product() {}
+
+        public Product(string name, decimal price, int categoryId)
+        {
+            Name = name;
+            Price = price;
+            CategoryId = categoryId;
+        }
+
         public string Name { get; set; } = null!;
         public decimal Price { get; set; }
         public int CategoryId { get; set; }
         public virtual Category? Category { get; set; }
+
+        public void Update(string name, decimal price)
+        {
+            Name = name;
+            Price = price;
+        }
     }
 }
 using System;
@@ -1245,7 +1663,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Catalog.Domain")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c30d5c66db2addd26e4c940407ff4f8e034cb9df")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bfb5bc62f4952fc410c632eeed1095dc6103e4b1")]
 [assembly: System.Reflection.AssemblyProductAttribute("Catalog.Domain")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Catalog.Domain")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
@@ -1253,10 +1671,610 @@ using System.Reflection;
 // Generated by the MSBuild WriteCodeFragment class.
 
 // <auto-generated/>
-global using System;
-global using System.Collections.Generic;
-global using System.IO;
-global using System.Linq;
-global using System.Net.Http;
-global using System.Threading;
-global using System.Threading.Tasks;
+global using global::System;
+global using global::System.Collections.Generic;
+global using global::System.IO;
+global using global::System.Linq;
+global using global::System.Net.Http;
+global using global::System.Threading;
+global using global::System.Threading.Tasks;
+// <autogenerated />
+using System;
+using System.Reflection;
+[assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v8.0", FrameworkDisplayName = ".NET 8.0")]
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//     Runtime Version:4.0.30319.42000
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: System.Reflection.AssemblyCompanyAttribute("Catalog.Ui")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bfb5bc62f4952fc410c632eeed1095dc6103e4b1")]
+[assembly: System.Reflection.AssemblyProductAttribute("Catalog.Ui")]
+[assembly: System.Reflection.AssemblyTitleAttribute("Catalog.Ui")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+// <auto-generated/>
+global using global::Microsoft.AspNetCore.Builder;
+global using global::Microsoft.AspNetCore.Hosting;
+global using global::Microsoft.AspNetCore.Http;
+global using global::Microsoft.AspNetCore.Routing;
+global using global::Microsoft.Extensions.Configuration;
+global using global::Microsoft.Extensions.DependencyInjection;
+global using global::Microsoft.Extensions.Hosting;
+global using global::Microsoft.Extensions.Logging;
+global using global::System;
+global using global::System.Collections.Generic;
+global using global::System.IO;
+global using global::System.Linq;
+global using global::System.Net.Http;
+global using global::System.Net.Http.Json;
+global using global::System.Threading;
+global using global::System.Threading.Tasks;
+using Catalog.Ui.Client.Pages;
+using Catalog.Ui.Components;
+using Catalog.UI.Shared.Infra.Extensions;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents()
+    .AddInteractiveWebAssemblyComponents();
+
+builder.Services.AddFrontSetup(builder.Configuration);
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.UseWebAssemblyDebugging();
+}
+else
+{
+    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
+
+app.UseStaticFiles();
+app.UseAntiforgery();
+
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode()
+    .AddInteractiveWebAssemblyRenderMode()
+    .AddAdditionalAssemblies(typeof(Catalog.Ui.Client._Imports).Assembly);
+
+app.Run();
+// <autogenerated />
+using System;
+using System.Reflection;
+[assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v8.0", FrameworkDisplayName = ".NET 8.0")]
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//     Runtime Version:4.0.30319.42000
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: System.Reflection.AssemblyCompanyAttribute("Catalog.Ui.Client")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bfb5bc62f4952fc410c632eeed1095dc6103e4b1")]
+[assembly: System.Reflection.AssemblyProductAttribute("Catalog.Ui.Client")]
+[assembly: System.Reflection.AssemblyTitleAttribute("Catalog.Ui.Client")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+// <auto-generated/>
+global using global::Microsoft.Extensions.Configuration;
+global using global::Microsoft.Extensions.DependencyInjection;
+global using global::Microsoft.Extensions.Logging;
+global using global::System;
+global using global::System.Collections.Generic;
+global using global::System.IO;
+global using global::System.Linq;
+global using global::System.Net.Http;
+global using global::System.Threading;
+global using global::System.Threading.Tasks;
+using Catalog.UI.Shared.Services;
+using Catalog.UI.Shared.Common;
+using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Logging;
+using Microsoft.JSInterop;
+using System.Text.Json;
+
+namespace Catalog.Ui.Client.Pages.Products;
+
+public partial class CreateUpdate : ComponentBase
+{
+    [Inject]
+    public required IApiService ApiService { get; set; }
+
+    [Inject]
+    public required NavigationManager NavigationManager { get; set; }
+
+    [Inject]
+    public required ILogger<CreateUpdate> Logger { get; set; }
+
+    [Inject]
+    public required IJSRuntime JsRuntime { get; set; }
+
+    public CreateUpdateVM ProductModel { get; set; } = new();
+
+    public IEnumerable<CategoryProductVM> Categories { get; set; } = new List<CategoryProductVM>();
+
+    private bool IsSaving { get; set; }
+    private string? StatusMessage { get; set; }
+    private bool IsError { get; set; }
+    private bool ShowPayload { get; set; }
+
+    [Parameter]
+    public int Id { get; set; }
+
+    public async Task HandleSaveAsync()
+    {
+        IsSaving = true;
+        StatusMessage = null;
+        IsError = false;
+
+        if (Id > 0)
+        {
+            // log payload antes do update
+            try
+            {
+                var payload = JsonSerializer.Serialize(ProductModel);
+                Logger.LogInformation("Updating product id {Id} with payload: {Payload}", Id, payload);
+                // também log no console do navegador para garantir visibilidade
+                try { await JsRuntime.InvokeVoidAsync("console.log", "Update payload:", payload); } catch { }
+            }
+            catch { }
+
+            var updateResponse = await ApiService.UpdateAsync($"Product/{Id}", ProductModel);
+            try
+            {
+                var respContent = await updateResponse.Content.ReadAsStringAsync();
+                Logger.LogInformation("Update response status {Status} content: {Content}", updateResponse.StatusCode, respContent);
+
+                if (updateResponse.IsSuccessStatusCode)
+                {
+                    // tentar desserializar o wrapper Result<T>
+                    try
+                    {
+                        var result = JsonSerializer.Deserialize<Result<CreateUpdateVM>>(respContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        if (result != null && result.IsSuccess)
+                        {
+                            StatusMessage = "Produto atualizado com sucesso.";
+                            IsError = false;
+                        }
+                        else
+                        {
+                            StatusMessage = result?.Error ?? "Falha ao atualizar o produto.";
+                            IsError = true;
+                        }
+                    }
+                    catch
+                    {
+                        StatusMessage = "Produto atualizado.";
+                        IsError = false;
+                    }
+                }
+                else
+                {
+                    StatusMessage = !string.IsNullOrWhiteSpace(respContent) ? respContent : $"Erro: {updateResponse.StatusCode}";
+                    IsError = true;
+                }
+            }
+            catch
+            {
+                StatusMessage = "Erro ao processar resposta do servidor.";
+                IsError = true;
+            }
+        }
+        else
+        {
+            try
+            {
+                var payload = JsonSerializer.Serialize(ProductModel);
+                Logger.LogInformation("Creating product with payload: {Payload}", payload);
+                try { await JsRuntime.InvokeVoidAsync("console.log", "Post payload:", payload); } catch { }
+            }
+            catch { }
+
+            var postResult = await ApiService.PostAsync<Result<CreateUpdateVM>>("Product", ProductModel);
+            try
+            {
+                Logger.LogInformation("Post returned: {@Result}", postResult);
+            }
+            catch { }
+
+            if (postResult != null && postResult.IsSuccess)
+            {
+                StatusMessage = "Produto criado com sucesso.";
+                IsError = false;
+            }
+            else
+            {
+                StatusMessage = postResult?.Error ?? "Falha ao criar produto.";
+                IsError = true;
+            }
+        }
+
+        IsSaving = false;
+
+        // se sucesso, aguardar um curto período para exibir a mensagem e depois navegar
+        if (!IsError)
+        {
+            await Task.Delay(1000);
+            NavigationManager.NavigateTo("/products");
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Id > 0)
+        {
+            try
+            {
+                var result = await ApiService.GetAsync<Result<CreateUpdateVM>>($"Product/{Id}");
+                if (result != null && result.IsSuccess)
+                {
+                    ProductModel = result.Value ?? new CreateUpdateVM();
+                }
+                else
+                {
+                    ProductModel = new CreateUpdateVM();
+                }
+            }
+            catch
+            {
+                ProductModel = new CreateUpdateVM();
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCategoriesAsync();
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        try
+        {
+            var result = await ApiService.GetAsync<Result<IEnumerable<CategoryProductVM>>>("Categories");
+            if (result != null && result.IsSuccess)
+            {
+                Categories = result.Value ?? new List<CategoryProductVM>();
+            }
+            else
+            {
+                Categories = new List<CategoryProductVM>();
+            }
+        }
+        catch
+        {
+            Categories = new List<CategoryProductVM>();
+        }
+    }
+
+    public string GetDebugPayload()
+    {
+        try
+        {
+            return JsonSerializer.Serialize(ProductModel, new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+}
+using Catalog.UI.Shared.Common;
+using Catalog.UI.Shared.Services;
+using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
+
+namespace Catalog.Ui.Client.Pages.Products;
+
+public partial class List : ComponentBase
+{
+    [Inject]
+    public required IApiService ApiService { get; set; }
+
+    [Inject]
+    public required IJSRuntime JsRuntime { get; set; }
+
+    [Inject]
+    public required ILogger<List> Logger { get; set; }
+    private IEnumerable<ListVM> Products { get; set; } = Enumerable.Empty<ListVM>();
+    private bool IsLoading { get; set; }
+    private string? ErrorMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProductsAsync();
+    }
+
+    private async Task LoadProductsAsync()
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+        try
+        {
+            var result = await ApiService.GetAsync<Result<IEnumerable<ListVM>>>("Product");
+
+            if (result != null && result.IsSuccess)
+            {
+                Products = result.Value ?? Enumerable.Empty<ListVM>();
+            }
+            else
+            {
+                Products = Enumerable.Empty<ListVM>();
+                ErrorMessage = result?.Error ?? "Erro ao carregar produtos.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Products = Enumerable.Empty<ListVM>();
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DeleteProductAsync(int id)
+    {
+        // confirmação no navegador
+        try
+        {
+            var confirm = await JsRuntime.InvokeAsync<bool>("confirm", $"Confirma exclusão do produto {id}?");
+            if (!confirm) return;
+
+            IsLoading = true;
+            ErrorMessage = null;
+
+            var response = await ApiService.DeleteAsync($"Product/{id}");
+            var content = await response.Content.ReadAsStringAsync();
+            if (response.IsSuccessStatusCode)
+            {
+                Logger.LogInformation("Produto {Id} removido com sucesso. Response: {Content}", id, content);
+                await LoadProductsAsync();
+            }
+            else
+            {
+                ErrorMessage = !string.IsNullOrWhiteSpace(content) ? content : $"Erro ao deletar produto: {response.StatusCode}";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+}
+using System.ComponentModel.DataAnnotations;
+
+namespace Catalog.Ui.Client.Pages.Products;
+
+public class ListVM
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = null!;
+    public decimal Price { get; set; }
+    public int CategoryId { get; set; }
+    public CategoryProductVM Category { get; set; } = null!;
+}
+
+public class CategoryProductVM
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = null!;
+}
+
+public class CreateUpdateVM
+{
+    public int Id { get; set; }
+
+    [Required]
+    public string? Name { get; set; }
+    [Required]
+    public decimal? Price { get; set; }
+    [Required]
+    public int? CategoryId { get; set; }
+
+}
+using Catalog.UI.Shared.Infra.Extensions;
+using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using System.Globalization;
+
+var builder = WebAssemblyHostBuilder.CreateDefault(args);
+builder.Services.AddFrontSetup(builder.Configuration);
+
+// Definir cultura para pt-BR para garantir parsing/format de números com vírgula
+var culture = new CultureInfo("pt-BR");
+CultureInfo.DefaultThreadCurrentCulture = culture;
+CultureInfo.DefaultThreadCurrentUICulture = culture;
+
+await builder.Build().RunAsync();
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.UI.Shared.Common
+{
+    public class Result
+    {
+        public Result() { }
+
+        public bool IsSuccess { get; set; }
+        public bool IsFailure => !IsSuccess;
+        public string? Error { get; set; }
+
+        protected Result(bool isSuccess, string? error)
+        {
+            IsSuccess = isSuccess;
+            Error = error;
+        }
+
+        public static Result Success() => new Result(true, null);
+        public static Result Failure(string error) => new Result(false, error);
+
+        public static Result<T> Success<T>(T value) => new Result<T>(value, true, null);
+        public static Result<T> Failure<T>(string error) => new Result<T>(default!, false, error);
+    }
+
+    public class Result<T> : Result
+    {
+        public T? Value { get; set; }
+
+        public Result() : base() { }
+
+        protected internal Result(T? value, bool isSuccess, string? error)
+            : base(isSuccess, error)
+        {
+            Value = value;
+        }
+    }
+}
+using Catalog.UI.Shared.Services;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Catalog.UI.Shared.Infra.Extensions
+{
+    public static class FrontendSetup
+    {
+        public static void AddFrontSetup(this IServiceCollection services, IConfiguration configuration)
+        {
+            services.AddScoped<IApiService, ApiService>();
+            services.AddHttpClient("Catalog.Api", client =>
+            {
+                var appUrl = configuration["APIServer:Url"] ?? 
+                    throw new Exception("API Server URL not found.");
+                client.BaseAddress = new Uri(appUrl);
+                client.DefaultRequestHeaders.Add("Accept", "application/json");
+            });
+        }
+    }
+}
+// <autogenerated />
+using System;
+using System.Reflection;
+[assembly: global::System.Runtime.Versioning.TargetFrameworkAttribute(".NETCoreApp,Version=v8.0", FrameworkDisplayName = ".NET 8.0")]
+//------------------------------------------------------------------------------
+// <auto-generated>
+//     This code was generated by a tool.
+//     Runtime Version:4.0.30319.42000
+//
+//     Changes to this file may cause incorrect behavior and will be lost if
+//     the code is regenerated.
+// </auto-generated>
+//------------------------------------------------------------------------------
+
+using System;
+using System.Reflection;
+
+[assembly: System.Reflection.AssemblyCompanyAttribute("Catalog.UI.Shared")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bfb5bc62f4952fc410c632eeed1095dc6103e4b1")]
+[assembly: System.Reflection.AssemblyProductAttribute("Catalog.UI.Shared")]
+[assembly: System.Reflection.AssemblyTitleAttribute("Catalog.UI.Shared")]
+[assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+
+// Generated by the MSBuild WriteCodeFragment class.
+
+// <auto-generated/>
+global using global::System;
+global using global::System.Collections.Generic;
+global using global::System.IO;
+global using global::System.Linq;
+global using global::System.Net.Http;
+global using global::System.Threading;
+global using global::System.Threading.Tasks;
+using System.Net.Http.Json;
+
+namespace Catalog.UI.Shared.Services
+{
+    public class ApiService : IApiService
+    {
+        private readonly HttpClient _client;
+
+        public ApiService(IHttpClientFactory clientFactory)
+        {
+            _client = clientFactory.CreateClient("Catalog.Api");
+        }
+
+        public async Task<T> GetAsync<T>(string route)
+        {
+            var data = await _client.GetFromJsonAsync<T>(route);
+            return data ?? default!;
+        }
+
+        public async Task<T> PostAsync<T>(string route, object data)
+        {
+            var newObj = await _client.PostAsJsonAsync(route, data);
+            return await newObj.Content.ReadFromJsonAsync<T>() ?? default!;
+        }
+
+        public async Task<HttpResponseMessage> UpdateAsync(string route, object data)
+        {
+            var response = await _client.PutAsJsonAsync(route, data);
+            return response;
+        }
+
+        public async Task<HttpResponseMessage> DeleteAsync(string route)
+        {
+            var response = await _client.DeleteAsync(route);
+            return response;
+        }
+    }
+}
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Catalog.UI.Shared.Services
+{
+    public interface IApiService
+    {
+        Task<T> GetAsync<T>(string route);
+        Task<T> PostAsync<T>(string route, object data);
+        Task<System.Net.Http.HttpResponseMessage> UpdateAsync(string route, object data);
+        Task<System.Net.Http.HttpResponseMessage> DeleteAsync(string route);
+        
+    }
+}

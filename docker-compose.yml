@@ -17,6 +17,20 @@ services:
       catalog.db:
         condition: service_healthy
 
+  catalog.ui:
+    image: ${DOCKER_REGISTRY-}catalogui
+    container_name: catalog-ui
+    build:
+      context: .
+      dockerfile: Catalog.Ui/Catalog.Ui/Dockerfile
+    ports:
+      - "7176:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - APIServer__Url=http://catalog-api:8080/api/v1/
+    depends_on:
+      - catalog.api
+
   catalog.db:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: catalog-db
